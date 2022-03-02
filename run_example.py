@@ -6,7 +6,10 @@ import pickle
 import numpy as np
 import time
 import random
-import graph 
+
+from tqdm import tqdm
+
+import graph
 from collections import defaultdict
 from UV_Encoders import UV_Encoder
 from UV_Aggregators import UV_Aggregator
@@ -20,6 +23,8 @@ from sklearn.metrics import mean_absolute_error
 from math import sqrt
 import datetime
 import argparse
+import pandas as pd
+import math
 
 import os
 import networkx as nx
@@ -189,8 +194,8 @@ def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge
     BiG = nx.Graph()
     node_u = history_u_lists.keys()
     node_v = history_v_lists.keys()
-    node_u.sort()
-    node_v.sort()
+    node_u = sorted(node_u)
+    node_v = sorted(node_v)
 
     BiG.add_nodes_from(node_u, bipartite = 0)
     BiG.add_nodes_from(node_v, bipartite = 1)
@@ -241,13 +246,17 @@ def load(path):
     G = nx.Graph()
     G.name = path
 
+    df_total = pd.read_csv("yelp_academic_dataset_business_total_dataset.csv",
+                           names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'review_id'])
+
     for net_type in ['u2u_new','u2b']:
-        with open("yelp_academic_dataset_business_total_dataset.csv") as fp:
-            for line in fp:
-                info = line.strip().split("\t")
-                node1 = info[0]
-                node2 = info[1]
-                rating = int(float(info[2]))
+        # with open("yelp_academic_dataset_business_total_dataset.csv") as fp:
+
+        for i, row in tqdm(df_total.iterrows()):
+            if not math.isnan(i):
+                node1 = int(row['user_id'])
+                node2 = int(row['business_id'])
+                rating = int(float(row['stars']))
                 if net_type == 'u2u_new':
                     G.add_edge(node1, node2, type='u2u')
                     uSet_u2u.add(node1)
@@ -266,7 +275,7 @@ def load(path):
 
 
     node_names = nx.get_node_attributes(G,'name') #key-value dict {'id':'name'}
-    inv_map = {v: k for k, v in node_names.iteritems()}
+    inv_map = {v: k for k, v in node_names.items()}
 
     uSet_u2u = set([inv_map.get(name) for name in uSet_u2u])
     uSet_u2b = set([inv_map.get(name) for name in uSet_u2b])
@@ -342,8 +351,8 @@ def load(path):
     _history_vr_lists = defaultdict(list)
     _train_u, _train_v, _train_r, _test_u, _test_v, _test_r = [],[],[],[],[],[]
 
-    user_id_dic = {v: k for k,v in dict(enumerate(history_u_lists.keys())).iteritems()}
-    item_id_dic = {v: k for k,v in dict(enumerate(history_v_lists.keys())).iteritems()}
+    user_id_dic = {v: k for k,v in dict(enumerate(history_u_lists.keys())).items()}
+    item_id_dic = {v: k for k,v in dict(enumerate(history_v_lists.keys())).items()}
 
 
     for u in history_u_lists:
@@ -401,7 +410,7 @@ def main():
 
     embed_dim = args.embed_dim
 
-    path = 'list.pkl'
+    path = os.getcwd()
     history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = load(path)
 
 
