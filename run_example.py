@@ -49,17 +49,25 @@ If you use this code, please cite our paper:
 """
 class GraphRec(nn.Module):
 
+    #3.2
+
     def __init__(self, enc_u, enc_v_history, r2e):
         super(GraphRec, self).__init__()
         self.enc_u = enc_u
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
 
+        #7 -> 6 -> 5
         self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim)
+
+        #7 -> 4
         self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim)
+
+        #1 -> 2 -> 3
         self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
+        # when d=16, it outperforms most baselines in the rating regression tasks
         self.w_uv2 = nn.Linear(self.embed_dim, 16)
         self.w_uv3 = nn.Linear(16, 1)
         self.r2e = r2e
@@ -95,8 +103,9 @@ class GraphRec(nn.Module):
 
 def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
     model.train()
+    print("Training")
     running_loss = 0.0
-    for i, data in enumerate(train_loader, 0):
+    for i, data in tqdm(enumerate(train_loader, 0)):
         batch_nodes_u, batch_nodes_v, labels_list = data
         optimizer.zero_grad()
         loss = model.loss(batch_nodes_u.to(device), batch_nodes_v.to(device), labels_list.to(device))
@@ -137,7 +146,7 @@ def save_homogenous_graph_to_file( A, datafile, index_row, index_item):
     indices = csr_dict.get("indices")
     col_index = 0
     with open(datafile,'w') as fw:
-        for row in range(M):
+        for row in tqdm(range(M)):
             for col in range(indptr[row],indptr[row+1]):
                 r = row
                 c = indices[col]
@@ -147,6 +156,11 @@ def save_homogenous_graph_to_file( A, datafile, index_row, index_item):
 def calculate_centrality(G, uSet, bSet, mode='hits'):
     authority_u = {}
     authority_v = {}
+
+    #degree centrality - of a node is simply its degree/number of edges it has
+    # the higher the degree, the more central node is
+    #effective method because many nodes with high degrees also have high centrality
+    # it is a good measure of the total connections a node has
     if mode == 'degree_centrality':
         a = nx.degree_centrality(G)
     else:
@@ -184,6 +198,8 @@ def get_random_walks_restart(datafile, hits_dict, percentage, maxT, minT):
     print("Folded HIN ==> number of nodes: {}".format(len(G.nodes())))
     print("walking...")
     # walks = graph.build_deepwalk_corpus_random(G, hits_dict, percentage=percentage, maxT = maxT, minT = minT, alpha=0)
+
+    #build_deepwalk_corpus(G, num_paths, path_length, alpha=0, rand=random.Random(0))
     walks = graph.build_deepwalk_corpus(G, None, 5, alpha=0, rand = random.Random())
     print("walking...ok")
     return G, walks
@@ -208,12 +224,17 @@ def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge
     index_row = dict(zip(row_index.values(), row_index.keys())) # index_new : node_u_id_original
     index_item = dict(zip(col_index.values(), col_index.keys()))
 
+    #3.2
+    #folding process
     AT = A.transpose()
     fw_u = os.path.join(path, "homogeneous_u.dat")
     fw_v = os.path.join(path, "homogeneous_v.dat")
+
+    #saves two homogenous networks (page 2)
     save_homogenous_graph_to_file(A.dot(AT),fw_u, index_row, index_row)
     save_homogenous_graph_to_file(AT.dot(A),fw_v, index_item, index_item)
 
+    #3.1 (centrality based sampling)
     authority_u, authority_v = calculate_centrality(BiG, node_u, node_v) # todo task
 
     G_u, walks_u = get_random_walks_restart(fw_u, authority_u, percentage = 0.15, maxT = 32, minT=1)
@@ -229,8 +250,14 @@ def load(path):
     train_u, train_v, train_r: training_set (user, item, rating)
     test_u, test_v, test_r: testing set (user, item, rating)
     """
+
+    #user to user
     uSet_u2u = set()
+
+    #user to business
     uSet_u2b = set()
+
+    #user to
     bSet_u2b = set()
     
     social_adj_lists = defaultdict(set)
@@ -251,7 +278,7 @@ def load(path):
 
     for net_type in ['u2u_new','u2b']:
         # with open("yelp_academic_dataset_business_total_dataset.csv") as fp:
-
+        #3.2
         for i, row in tqdm(df_total.iterrows()):
             if not math.isnan(i):
                 node1 = int(row['user_id'])
@@ -397,16 +424,24 @@ def main():
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
+    parser.add_argument('--epochs', type=int, default=1, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    start = time.time()
+    print("Start time: ", time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start)))
+
+    #4.3
+    #batch_size = 128
+    #embedding_size = 64
+    #learning_rate = 0.001
+    #test_batch_size = 1000
+    #epochs = 100
+
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-    use_cuda = False
-    if torch.cuda.is_available():
-        # use_cuda = False
-        use_cuda = True
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    print(device)
 
     embed_dim = args.embed_dim
 
@@ -446,8 +481,8 @@ def main():
     best_mae = 9999.0
     endure_count = 0
 
-    for epoch in range(1, args.epochs + 1):
-
+    for epoch in tqdm(range(1, args.epochs + 1)):
+        print("epoch: ", epoch)
         train(graphrec, device, train_loader, optimizer, epoch, best_rmse, best_mae)
         expected_rmse, mae = test(graphrec, device, test_loader)
         # please add the validation set to tune the hyper-parameters based on your datasets.
@@ -464,6 +499,8 @@ def main():
         if endure_count > 10:
             break
 
+    end = time.time()
+    print("Time Elapsed: ", end - start)
 
 if __name__ == "__main__":
     main()
