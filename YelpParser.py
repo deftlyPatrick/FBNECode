@@ -1,9 +1,8 @@
 import json
 import pickle
 from random import random
-
+import numpy as np
 import ijson as ijson
-import pandas as pd
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -27,6 +26,7 @@ class YelpParser():
             self.businesses_dict = defaultdict()
             self.categories_dict = defaultdict()
             self.user_dict = defaultdict()
+            self.user_friends_dict = {}
 
             self.user_dict_rating = defaultdict()
             self.total_review_dict = defaultdict()
@@ -45,7 +45,7 @@ class YelpParser():
             i_users_list = []
 
             df_total = pd.read_csv(files[0],
-                                   names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'review_id'])
+                                   names=['id', 'user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'review_id'])
 
             df_user_business = pd.read_csv(files[1],
                                            names=['user_id', 'business_id'])
@@ -79,9 +79,9 @@ class YelpParser():
 
             for i, row in tqdm(df_total.iterrows()):
                 if not math.isnan(i):
-                    uid = int(row['user_id'])
+                    uid = int(row['id'])
                     iid = int(row['business_id'])
-                    label = float(row['stars'])
+                    label = int(float(row['stars']))
 
                     click_list.append([uid, iid, label])
 
@@ -131,8 +131,14 @@ class YelpParser():
 
             print("user_count: ",user_count)
 
+            key_id = list(df_user_dict.keys())
+            val_user_id = list(df_user_dict.values())
+
+
+
             for u in tqdm(range(int(user_count) + 1)):
-                hist = train_df[train_df['uid'] == df_user_dict[str(u)]]
+                # position = key_id.index(str(u))
+                hist = train_df[train_df['uid'] == u]
                 u_items = hist['iid'].tolist()
                 u_ratings = hist['label'].tolist()
                 if u_items == []:
@@ -147,8 +153,9 @@ class YelpParser():
             """
             i_users_list: 存储与每个物品相关联的用户及其评分，没有则为[(0, 0)]
             """
-            for u in range(item_count + 1):
-                hist = train_df[train_df['iid'] == u]
+            for u in tqdm(range(item_count + 1)):
+                # position = key_id.index(str(u))
+                hist = train_df[train_df['uid'] == u]
                 i_users = hist['uid'].tolist()
                 i_ratings = hist['label'].tolist()
                 if i_users == []:
@@ -161,8 +168,6 @@ class YelpParser():
                     uid = int(row['user_id'])
                     fid = int(row['business_id'])
 
-                    if uid > user_count or fid > user_count:
-                        continue
                     trust_list.append([uid, fid])
 
             trust_df = pd.DataFrame(trust_list, columns=['uid', 'fid'])
@@ -173,7 +178,7 @@ class YelpParser():
             u_users_list: 存储每个用户互动过的用户uid；
             u_users_items_list: 存储用户每个朋友的物品iid列表
             """
-            for u in range(user_count + 1):
+            for u in tqdm(range(user_count + 1)):
                 hist = trust_df[trust_df['uid'] == u]
                 u_users = hist['fid'].unique().tolist()
                 if u_users == []:
@@ -183,7 +188,8 @@ class YelpParser():
                     u_users_list.append(u_users)
                     uu_items = []
                     for uid in u_users:
-                        uu_items.append(u_items_list[uid])
+                        position = val_user_id.index(uid)
+                        uu_items.append(u_items_list[position])
                     u_users_items_list.append(uu_items)
 
             print(len(u_items_list))
@@ -225,29 +231,41 @@ class YelpParser():
             #check if user_id exists in yelp_academic_dataset_user.csv
             #check if business_id exists in yelp_academic_dataset_business_rating.csv
 
+            self.user_dict = defaultdict()
+            self.businesses_dict = defaultdict()
+
             with open(file, 'r', encoding='utf-8') as reviews:
                 counter = 0
-                for line in reviews:
-                    if counter_2 != 1000:
+                for line in tqdm(reviews):
+                    if counter_2 != 10000:
                         data = json.loads(line)
 
                         tempReviewID = self.convertLettersToNumbers(data["review_id"])
                         tempUserID = self.convertLettersToNumbers(data["user_id"])
                         tempBusinessID = self.convertLettersToNumbers(data["business_id"])
 
-                        if tempUserID in self.user_dict_rating.keys():
+                        if tempUserID in self.user_dict_rating.keys() and tempUserID in self.user_friends_dict.keys():
                             if tempBusinessID in self.businesses_rating_dict.keys():
                                 helpfulness = (self.businesses_rating_dict[tempBusinessID] + data["stars"])/2
-                                self.total_review_dict[counter] = [tempUserID, tempBusinessID, self.businesses_category_dict[tempBusinessID], data["stars"], helpfulness, tempReviewID]
+                                self.total_review_dict[counter] = [counter, tempUserID, tempBusinessID, self.businesses_category_dict[tempBusinessID], data["stars"], helpfulness, self.user_friends_dict[tempUserID], tempReviewID]
+                                self.user_dict[counter] = tempUserID
+                                self.businesses_dict[counter] = tempBusinessID
                                 counter += 1
+
                         else:
-                            pass
+                            counter_2 += 1
                     else:
                         pass
 
             # print(self.total_review_dict)
 
-            self.output_to_CSV(self.total_review_dict, "_total_dataset.csv", specialColumns=True, labels=["user_id", "business_id", "category_id", "stars", "helpfulness", "review_id"])
+            self.output_to_CSV(self.total_review_dict, name=self.file_name+"_total_dataset.csv", specialColumns=True, labels=["id", "user_id", "business_id", "category_id", "stars", "helpfulness", "friends", "review_id"])
+
+            #updates business_total
+            self.output_to_CSV(self.businesses_dict, "yelp_academic_dataset_business_total.csv", labels=["id", "business_id"])
+
+            #updates user_total
+            self.output_to_CSV(self.user_dict, "yelp_academic_dataset_user_total.csv", labels=["id", "user_id"])
 
             file = self.file_name+"_total_dataset.csv"
 
@@ -302,11 +320,11 @@ class YelpParser():
             business_counter = 0
 
             with open(file, 'r', encoding='utf-8') as f:
-                for line in f:
+                for line in tqdm(f):
                     data = json.loads(line)
 
                     if int(data["review_count"]) > 5 and data["is_open"] != 0 and data["categories"] is not None:
-                        if counter != 1000:
+                        if counter != 10000:
                             tempBusinessID = self.convertLettersToNumbers(data["business_id"])
 
                             tempCategories = data["categories"].split(",")
@@ -368,9 +386,9 @@ class YelpParser():
             #         writer.writerow([key, value])
 
             self.output_to_CSV(self.businesses_rating_dict, labels=["business_id", "rating"])
-            self.output_to_CSV(self.businesses_dict, "_total.csv", labels=["id", "business_id"])
-            self.output_to_CSV(self.businesses_category_dict, "_category.csv", labels=["business_id", "category_ids"])
-            self.output_to_CSV(self.categories_dict, "_categories_index.csv", labels=["category_id", "category_name"])
+            self.output_to_CSV(self.businesses_dict, name=self.file_name+"_total.csv", labels=["id", "business_id"])
+            self.output_to_CSV(self.businesses_category_dict, name=self.file_name + "_category.csv", labels=["business_id", "category_ids"])
+            self.output_to_CSV(self.categories_dict, name=self.file_name+"_categories_index.csv", labels=["category_id", "category_name"])
 
             end = time.time()
             print("Time Elapsed: ", (end - start) / 60)
@@ -397,17 +415,16 @@ class YelpParser():
             user_counter = 0
 
             with open(file, 'r', encoding='utf-8') as f:
-                for line in f:
+                for line in tqdm(f):
                     data = json.loads(line)
                     if int(data["review_count"]) > 10 and len(data["name"]) > 1:
-                        if counter != 1000:
+                        if counter != 10000:
 
                             tempUserID = self.convertLettersToNumbers(data["user_id"])
 
                             if tempUserID not in users:
-                                self.user_dict[user_counter] = tempUserID
+                                self.user_dict[user_counter] = int(tempUserID)
                                 user_counter += 1
-
 
                             self.user_dict_rating[tempUserID] = data["yelping_since"]
 
@@ -417,12 +434,54 @@ class YelpParser():
 
                             if latest_date < yelp_user_date:
                                 latest_date = yelp_user_date
+
+                            if len(data["friends"]) > 10:
+
+                                friendList = data["friends"].split()
+
+                                friendList = [friend.replace(',','') for friend in friendList]
+
+                                tempFriendList = []
+
+                                for friend_id in friendList:
+
+                                    tempFriend = self.convertLettersToNumbers(friend_id)
+
+                                    tempFriendList.append(int(tempFriend))
+
+                                self.user_friends_dict[tempUserID] = list(map(int, tempFriendList))
+
                             counter += 1
                         else:
                             pass
 
+            usersToBeDeleted = []
+            #
+            for key, val in tqdm(self.user_friends_dict.items()):
+                non_matches = list(set(val) - set(self.user_dict.values()))
+                existing_friends = list(set(val)-set(non_matches))
+
+
+                # for friend in range(len(val)):
+                #     if val[friend] in self.user_dict.values():
+                #         friendsToKeep.append(val[friend])
+                    # else:
+                        # print("removed: ", val[friend])
+                print(len(existing_friends))
+                if len(existing_friends) > 4:
+                    self.user_friends_dict[key] = existing_friends
+                else:
+                    print("to be deleted: ", key)
+                    usersToBeDeleted.append(key)
+
+            for key in tqdm(self.user_friends_dict.copy()):
+                if key in usersToBeDeleted:
+                    del self.user_friends_dict[key]
+
+
             self.output_to_CSV(self.user_dict_rating, labels=["user_id", "yelping_since"])
-            self.output_to_CSV(self.user_dict, "_total.csv", labels=["id", "user_id"])
+            self.output_to_CSV(self.user_dict, name=self.file_name+"_total.csv", labels=["id", "user_id"])
+            self.output_to_CSV(self.user_friends_dict, name=self.file_name+"_friends_total.csv", labels=["user_id", "friend_list"])
 
             end = time.time()
             print("Time Elapsed: ", (end - start) / 60)
@@ -449,12 +508,12 @@ class YelpParser():
             if name is None:
                 output = self.file_name + "_rating.csv"
             else:
-                output = self.file_name + name
+                output = name
 
             tempPath = Path(output)
             if tempPath.is_file():
                 os.remove(output)
-                print("Deleted: ", output)
+                print("\nDeleted: ", output)
 
             with open(output, 'w') as f:
                 writer = csv.writer(f, lineterminator='\n')
@@ -479,10 +538,10 @@ class YelpParser():
 #######################################################################################################################
 
 a = YelpParser()
-# a.parseUserToCSV("yelp_academic_dataset_user")
-# a.parseBusinessToCSV("yelp_academic_dataset_business")
-# a.parseReviewToCSV("yelp_academic_dataset_review")
-a.preprocess(files=["yelp_academic_dataset_business_total_dataset.csv", "yelp_academic_dataset_business_user_business.csv", "yelp_academic_dataset_business_total.csv", "yelp_academic_dataset_business_rating.csv", "yelp_academic_dataset_user_total.csv"])
+a.parseUserToCSV("yelp_academic_dataset_user")
+a.parseBusinessToCSV("yelp_academic_dataset_business")
+a.parseReviewToCSV("yelp_academic_dataset_review")
+# a.preprocess(files=["yelp_academic_dataset_business_total_dataset.csv", "yelp_academic_dataset_business_user_business.csv", "yelp_academic_dataset_business_total.csv", "yelp_academic_dataset_business_rating.csv", "yelp_academic_dataset_user_total.csv"])
 
 # parseUserToCSV(file_name_user)
 # parseBusinessToCSV(file_name_business)

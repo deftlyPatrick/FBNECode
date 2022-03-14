@@ -274,21 +274,31 @@ def load(path):
     G.name = path
 
     df_total = pd.read_csv("yelp_academic_dataset_business_total_dataset.csv",
-                           names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'review_id'])
+                           names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'friends', 'review_id'])
 
+
+    #creates a node for user_id to business_id (forming an edge)
+    #user to user
+    #user to business
     for net_type in ['u2u_new','u2b']:
         # with open("yelp_academic_dataset_business_total_dataset.csv") as fp:
         #3.2
         for i, row in tqdm(df_total.iterrows()):
-            if not math.isnan(i):
+            if not math.isnan(i[0]):
                 node1 = int(row['user_id'])
-                node2 = int(row['business_id'])
-                rating = int(float(row['stars']))
                 if net_type == 'u2u_new':
-                    G.add_edge(node1, node2, type='u2u')
-                    uSet_u2u.add(node1)
-                    uSet_u2u.add(node2)
+                    row['friends'] = row['friends'].replace("[", "")
+                    row['friends'] = row['friends'].replace("]", "")
+                    friend_list = row['friends'].split(",")
+                    for friend in friend_list:
+                        # print(friend)
+                        node2 = int(friend)
+                        G.add_edge(node1, node2, type='u2u')
+                        uSet_u2u.add(node1)
+                        uSet_u2u.add(node2)
                 else:
+                    node2 = int(row['business_id'])
+                    rating = int(float(row['stars']))
                     G.add_edge(node1, node2, type='u2b', rating=rating)
                     uSet_u2b.add(node1)
                     bSet_u2b.add(node2)
@@ -394,8 +404,17 @@ def load(path):
     for v in history_vr_lists:
         _history_vr_lists[item_id_dic[v]] = history_vr_lists[v]
 
+    tempList = []
+
+    del social_adj_lists[0]
     for u in social_adj_lists:
-        _social_adj_lists[user_id_dic[u]] = [user_id_dic[us] for us in social_adj_lists[u]]
+
+        for us in social_adj_lists[u]:
+            if us in user_id_dic:
+                tempList.append(user_id_dic[us])
+
+        if u in user_id_dic:
+            _social_adj_lists[user_id_dic[u]] = tempList
 
     for u,v,r in train_data:
         _train_u.append(user_id_dic[u])
@@ -424,7 +443,7 @@ def main():
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N', help='number of epochs to train')
+    parser.add_argument('--epochs', type=int, default=5, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
     start = time.time()
