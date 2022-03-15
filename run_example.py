@@ -31,6 +31,7 @@ import networkx as nx
 from networkx.algorithms import bipartite as bi
 import itertools
 import sys
+
 """
 GraphRec: Graph Neural Networks for Social Recommendation. 
 Wenqi Fan, Yao Ma, Qing Li, Yuan He, Eric Zhao, Jiliang Tang, and Dawei Yin. 
@@ -47,9 +48,11 @@ If you use this code, please cite our paper:
 ```
 
 """
+
+
 class GraphRec(nn.Module):
 
-    #3.2
+    # 3.2
 
     def __init__(self, enc_u, enc_v_history, r2e):
         super(GraphRec, self).__init__()
@@ -57,20 +60,23 @@ class GraphRec(nn.Module):
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
 
-        #7 -> 6 -> 5
+        # 7 -> 6 -> 5
         self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim)
 
-        #7 -> 4
+        # 7 -> 4
         self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim)
 
-        #1 -> 2 -> 3
+        # 1 -> 2 -> 3
         self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
         # when d=16, it outperforms most baselines in the rating regression tasks
         self.w_uv2 = nn.Linear(self.embed_dim, 16)
         self.w_uv3 = nn.Linear(16, 1)
         self.r2e = r2e
+
+        # mean and standard deviation to normalize  are calculated per dimension per mini batch
+        #
         self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
@@ -137,36 +143,37 @@ def test(model, device, test_loader):
     return expected_rmse, mae
 
 
-
-def save_homogenous_graph_to_file( A, datafile, index_row, index_item):
-    (M,N) = A.shape # 8371 * 8371
+# creates graph
+def save_homogenous_graph_to_file(A, datafile, index_row, index_item):
+    (M, N) = A.shape  # 8371 * 8371
     csr_dict = A.__dict__
     data = csr_dict.get("data")
     indptr = csr_dict.get("indptr")
     indices = csr_dict.get("indices")
     col_index = 0
-    with open(datafile,'w') as fw:
+    with open(datafile, 'w') as fw:
         for row in tqdm(range(M)):
-            for col in range(indptr[row],indptr[row+1]):
+            for col in range(indptr[row], indptr[row + 1]):
                 r = row
                 c = indices[col]
-                fw.write(str(index_row.get(r))+"\t"+str(index_item.get(c))+"\t"+str(data[col_index])+"\n")
+                fw.write(str(index_row.get(r)) + "\t" + str(index_item.get(c)) + "\t" + str(data[col_index]) + "\n")
                 col_index += 1
+
 
 def calculate_centrality(G, uSet, bSet, mode='hits'):
     authority_u = {}
     authority_v = {}
 
-    #degree centrality - of a node is simply its degree/number of edges it has
+    # degree centrality - of a node is simply its degree/number of edges it has
     # the higher the degree, the more central node is
-    #effective method because many nodes with high degrees also have high centrality
+    # effective method because many nodes with high degrees also have high centrality
     # it is a good measure of the total connections a node has
     if mode == 'degree_centrality':
         a = nx.degree_centrality(G)
     else:
         h, a = nx.hits(G)
 
-    max_a_u, min_a_u,max_a_v,min_a_v = 0, 100000, 0, 100000
+    max_a_u, min_a_u, max_a_v, min_a_v = 0, 100000, 0, 100000
 
     for node in G.nodes():
         if node in uSet:
@@ -182,65 +189,64 @@ def calculate_centrality(G, uSet, bSet, mode='hits'):
 
     for node in G.nodes():
         if node in uSet:
-            if max_a_u-min_a_u != 0:
-                authority_u[node] = (float(a[node])-min_a_u) / (max_a_u-min_a_u)
+            if max_a_u - min_a_u != 0:
+                authority_u[node] = (float(a[node]) - min_a_u) / (max_a_u - min_a_u)
             else:
                 authority_u[node] = 0
         if node in bSet:
-            if max_a_v-min_a_v != 0:
-                authority_v[node] = (float(a[node])-min_a_v) / (max_a_v-min_a_v)
+            if max_a_v - min_a_v != 0:
+                authority_v[node] = (float(a[node]) - min_a_v) / (max_a_v - min_a_v)
             else:
                 authority_v[node] = 0
     return authority_u, authority_v
+
 
 def get_random_walks_restart(datafile, hits_dict, percentage, maxT, minT):
     G = graph.load_edgelist(datafile, undirected=True)
     print("Folded HIN ==> number of nodes: {}".format(len(G.nodes())))
     print("walking...")
-    # walks = graph.build_deepwalk_corpus_random(G, hits_dict, percentage=percentage, maxT = maxT, minT = minT, alpha=0)
 
-    #build_deepwalk_corpus(G, num_paths, path_length, alpha=0, rand=random.Random(0))
-    walks = graph.build_deepwalk_corpus(G, None, 5, alpha=0, rand = random.Random())
+    walks = graph.build_deepwalk_corpus(G, None, 5, alpha=0, rand=random.Random())
     print("walking...ok")
     return G, walks
 
 
 def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge_list_uv, edge_list_vu):
-
     BiG = nx.Graph()
     node_u = history_u_lists.keys()
     node_v = history_v_lists.keys()
     node_u = sorted(node_u)
     node_v = sorted(node_v)
 
-    BiG.add_nodes_from(node_u, bipartite = 0)
-    BiG.add_nodes_from(node_v, bipartite = 1)
+    BiG.add_nodes_from(node_u, bipartite=0)
+    BiG.add_nodes_from(node_v, bipartite=1)
     BiG.add_weighted_edges_from(edge_list_uv + edge_list_vu)
-    A = bi.biadjacency_matrix(BiG, node_u, node_v, dtype=np.float,weight='weight', format='csr')
+    A = bi.biadjacency_matrix(BiG, node_u, node_v, dtype=np.float, weight='weight', format='csr')
 
-    row_index = dict(zip(node_u, itertools.count())) #node_u_id_original : index_new
-    col_index = dict(zip(node_v, itertools.count())) #node_v_id_original : index_new
+    row_index = dict(zip(node_u, itertools.count()))  # node_u_id_original : index_new
+    col_index = dict(zip(node_v, itertools.count()))  # node_v_id_original : index_new
 
-    index_row = dict(zip(row_index.values(), row_index.keys())) # index_new : node_u_id_original
+    index_row = dict(zip(row_index.values(), row_index.keys()))  # index_new : node_u_id_original
     index_item = dict(zip(col_index.values(), col_index.keys()))
 
-    #3.2
-    #folding process
+    # 3.2
+    # folding process
     AT = A.transpose()
     fw_u = os.path.join(path, "homogeneous_u.dat")
     fw_v = os.path.join(path, "homogeneous_v.dat")
 
-    #saves two homogenous networks (page 2)
-    save_homogenous_graph_to_file(A.dot(AT),fw_u, index_row, index_row)
-    save_homogenous_graph_to_file(AT.dot(A),fw_v, index_item, index_item)
+    # saves two homogenous networks (page 2)
+    save_homogenous_graph_to_file(A.dot(AT), fw_u, index_row, index_row)
+    save_homogenous_graph_to_file(AT.dot(A), fw_v, index_item, index_item)
 
-    #3.1 (centrality based sampling)
-    authority_u, authority_v = calculate_centrality(BiG, node_u, node_v) # todo task
+    # 3.1 (centrality based sampling)
+    authority_u, authority_v = calculate_centrality(BiG, node_u, node_v)  # todo task
 
-    G_u, walks_u = get_random_walks_restart(fw_u, authority_u, percentage = 0.15, maxT = 32, minT=1)
-    G_v, walks_v = get_random_walks_restart(fw_v, authority_v, percentage = 0.15, maxT = 32, minT=1)
+    G_u, walks_u = get_random_walks_restart(fw_u, authority_u, percentage=0.15, maxT=32, minT=1)
+    G_v, walks_v = get_random_walks_restart(fw_v, authority_v, percentage=0.15, maxT=32, minT=1)
 
     return G_u, walks_u, G_v, walks_v
+
 
 def load(path):
     """
@@ -251,15 +257,15 @@ def load(path):
     test_u, test_v, test_r: testing set (user, item, rating)
     """
 
-    #user to user
+    # user to user
     uSet_u2u = set()
 
-    #user to business
+    # user to business
     uSet_u2b = set()
 
-    #user to
+    # user to
     bSet_u2b = set()
-    
+
     social_adj_lists = defaultdict(set)
     history_u_lists = defaultdict(list)
     history_v_lists = defaultdict(list)
@@ -267,22 +273,18 @@ def load(path):
     history_ur_lists = defaultdict(list)
     history_vr_lists = defaultdict(list)
 
-    neg_neighbors_u2u = defaultdict()
-    neg_neighbors_u2b = defaultdict()
-
     G = nx.Graph()
     G.name = path
 
     df_total = pd.read_csv("yelp_academic_dataset_business_total_dataset.csv",
-                           names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'friends', 'review_id'])
+                           names=['user_id', 'business_id', 'category_id', 'stars', 'helpfulness', 'friends',
+                                  'review_id'])
 
-
-    #creates a node for user_id to business_id (forming an edge)
-    #user to user
-    #user to business
-    for net_type in ['u2u_new','u2b']:
-        # with open("yelp_academic_dataset_business_total_dataset.csv") as fp:
-        #3.2
+    # creates a node for user_id to business_id (forming an edge)
+    # user to user
+    # user to business
+    for net_type in ['u2u_new', 'u2b']:
+        # 3.2
         for i, row in tqdm(df_total.iterrows()):
             if not math.isnan(i[0]):
                 node1 = int(row['user_id'])
@@ -310,8 +312,7 @@ def load(path):
 
     G = nx.convert_node_labels_to_integers(G, first_label=0, ordering='default', label_attribute="name")
 
-
-    node_names = nx.get_node_attributes(G,'name') #key-value dict {'id':'name'}
+    node_names = nx.get_node_attributes(G, 'name')  # key-value dict {'id':'name'}
     inv_map = {v: k for k, v in node_names.items()}
 
     uSet_u2u = set([inv_map.get(name) for name in uSet_u2u])
@@ -326,7 +327,7 @@ def load(path):
             if G[node][nbr]['type'] == 'u2u':
                 social_adj_lists[node].add(nbr)
             if G[node][nbr]['type'] == 'u2b':
-                r = G[node][nbr]['rating']-1
+                r = G[node][nbr]['rating'] - 1
                 if node in uSet_u2b and nbr in bSet_u2b:
                     history_u_lists[node].append(nbr)
                     history_v_lists[nbr].append(node)
@@ -342,62 +343,59 @@ def load(path):
                     edge_list_uv.append((nbr, node, r))
                     edge_list_vu.append((node, nbr, r))
 
-
     # print "Len: social_adj_lists: ", len(social_adj_lists)
     # print "Len: history_u_lists: ", len(history_u_lists)
     # print "Len: history_v_lists: ", len(history_v_lists)
 
-    #create bipartite graph for random walk
-    G_u, walks_u, G_v, walks_v = generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge_list_uv, edge_list_vu)
+    # create bipartite graph for random walk
+    G_u, walks_u, G_v, walks_v = generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge_list_uv,
+                                                                 edge_list_vu)
 
     # data split
     data = []
-    for (u,v) in G.edges():
+    for (u, v) in G.edges():
         if G[u][v]['type'] == 'u2b':
-            r = G[u][v]['rating']-1
+            r = G[u][v]['rating'] - 1
             if u in uSet_u2b:
-                data.append((u,v,r))
+                data.append((u, v, r))
             else:
-                data.append((v,u,r))
+                data.append((v, u, r))
     size = len(data)
-    train_data = data[:int(0.8*size)] #35704
-    test_data = data[int(0.8*size):] #8927
+    train_data = data[:int(0.8 * size)]  # 35704
+    test_data = data[int(0.8 * size):]  # 8927
 
-    train_u, train_v, train_r, test_u, test_v, test_r = [],[],[],[],[],[]
-    for u,v,r in train_data:
+    train_u, train_v, train_r, test_u, test_v, test_r = [], [], [], [], [], []
+    for u, v, r in train_data:
         train_u.append(u)
         train_v.append(v)
         train_r.append(r)
 
-    for u,v,r in test_data:
+    for u, v, r in test_data:
         test_u.append(u)
         test_v.append(v)
         test_r.append(r)
 
+    ratings_list = [0, 1, 2, 3, 4]
 
-    ratings_list = [0,1,2,3,4]
-    #return history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list
-    
-    #------------------------------reindexed users and items respectively------------------------
-    #reindex
+    # ------------------------------reindexed users and items respectively------------------------
+    # reindex
     _social_adj_lists = defaultdict(set)
     _history_u_lists = defaultdict(list)
     _history_v_lists = defaultdict(list)
 
     _history_ur_lists = defaultdict(list)
     _history_vr_lists = defaultdict(list)
-    _train_u, _train_v, _train_r, _test_u, _test_v, _test_r = [],[],[],[],[],[]
+    _train_u, _train_v, _train_r, _test_u, _test_v, _test_r = [], [], [], [], [], []
 
-    user_id_dic = {v: k for k,v in dict(enumerate(history_u_lists.keys())).items()}
-    item_id_dic = {v: k for k,v in dict(enumerate(history_v_lists.keys())).items()}
-
+    user_id_dic = {v: k for k, v in dict(enumerate(history_u_lists.keys())).items()}
+    item_id_dic = {v: k for k, v in dict(enumerate(history_v_lists.keys())).items()}
 
     for u in history_u_lists:
         _history_u_lists[user_id_dic[u]] = [item_id_dic[v] for v in history_u_lists[u]]
-    
+
     for v in history_v_lists:
         _history_v_lists[item_id_dic[v]] = [user_id_dic[u] for u in history_v_lists[v]]
-    
+
     for u in history_ur_lists:
         _history_ur_lists[user_id_dic[u]] = history_ur_lists[u]
 
@@ -416,16 +414,16 @@ def load(path):
         if u in user_id_dic:
             _social_adj_lists[user_id_dic[u]] = tempList
 
-    for u,v,r in train_data:
+    for u, v, r in train_data:
         _train_u.append(user_id_dic[u])
         _train_v.append(item_id_dic[v])
         _train_r.append(r)
 
-    for u,v,r in test_data:
+    for u, v, r in test_data:
         _test_u.append(user_id_dic[u])
         _test_v.append(item_id_dic[v])
         _test_r.append(r)
-    
+
     # re-index walks_u and walks_v
     _walks_u = defaultdict(list)
     _walks_v = defaultdict(list)
@@ -435,6 +433,9 @@ def load(path):
         _walks_v[item_id_dic[v]] = [item_id_dic[vs] for vs in walks_v[v]]
 
     return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list
+
+
+# uses folded_encoders
 
 def main():
     # Training settings
@@ -449,12 +450,12 @@ def main():
     start = time.time()
     print("Start time: ", time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start)))
 
-    #4.3
-    #batch_size = 128
-    #embedding_size = 64
-    #learning_rate = 0.001
-    #test_batch_size = 1000
-    #epochs = 100
+    # 4.3
+    # batch_size = 128
+    # embedding_size = 64
+    # learning_rate = 0.001
+    # test_batch_size = 1000
+    # epochs = 100
 
     # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -465,8 +466,8 @@ def main():
     embed_dim = args.embed_dim
 
     path = os.getcwd()
-    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = load(path)
-
+    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = load(
+        path)
 
     trainset = torch.utils.data.TensorDataset(torch.LongTensor(train_u), torch.LongTensor(train_v),
                                               torch.FloatTensor(train_r))
@@ -474,26 +475,34 @@ def main():
                                              torch.FloatTensor(test_r))
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=True)
+
     num_users = history_u_lists.__len__()
     num_items = history_v_lists.__len__()
     num_ratings = ratings_list.__len__()
     print("number of users, items, ratings: ", (num_users, num_items, num_ratings))
+
     u2e = nn.Embedding(num_users, embed_dim).to(device)
     v2e = nn.Embedding(num_items, embed_dim).to(device)
     r2e = nn.Embedding(num_ratings, embed_dim).to(device)
     # user feature
     agg_u_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=True)
     enc_u_history = UV_Encoder(u2e, embed_dim, history_u_lists, history_ur_lists, agg_u_history, cuda=device, uv=True)
-    enc_u = Folded_Encoder(lambda nodes: enc_u_history(nodes).t(), u2e, embed_dim, 5, walks_u, base_model=enc_u_history, cuda=device)
+    enc_u = Folded_Encoder(lambda nodes: enc_u_history(nodes).t(), u2e, embed_dim, 5, walks_u, base_model=enc_u_history,
+                           cuda=device)
 
     # item feature: user * rating
     agg_v_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=False)
     enc_v_history = UV_Encoder(v2e, embed_dim, history_v_lists, history_vr_lists, agg_v_history, cuda=device, uv=False)
 
-    enc_v = Folded_Encoder(lambda nodes: enc_v_history(nodes).t(), v2e, embed_dim, 5, walks_v, base_model=enc_v_history, cuda=device)
+    enc_v = Folded_Encoder(lambda nodes: enc_v_history(nodes).t(), v2e, embed_dim, 5, walks_v, base_model=enc_v_history,
+                           cuda=device)
 
     # model
-    graphrec = GraphRec(enc_u, enc_v, r2e).to(device) 
+
+    #creates model
+    graphrec = GraphRec(enc_u, enc_v, r2e).to(device)
+
+    #optimizer for RMSprop algorithm 
     optimizer = torch.optim.RMSprop(graphrec.parameters(), lr=args.lr, alpha=0.9)
 
     best_rmse = 9999.0
@@ -520,6 +529,7 @@ def main():
 
     end = time.time()
     print("Time Elapsed: ", end - start)
+
 
 if __name__ == "__main__":
     main()
