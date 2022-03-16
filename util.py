@@ -200,7 +200,7 @@ class tools:
 				for line in content:
 					info = line.split("\t")
 					neg_neighbors.append([int(x) for x in info])
-			print("Loaded fromn existing files")
+		print("Loaded from existing files")
 		
 		neg_neighbors = np.array(neg_neighbors)
 		return neg_neighbors

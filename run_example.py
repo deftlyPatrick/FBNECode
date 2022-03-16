@@ -435,7 +435,7 @@ def load(path):
     return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list
 
 
-# uses folded_encoders
+# uses folded_encoders, attention, UV_aggregators,
 
 def main():
     # Training settings
