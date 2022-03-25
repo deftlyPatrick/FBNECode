@@ -133,11 +133,15 @@ def test(model, device, test_loader):
         for test_u, test_v, tmp_target in test_loader:
             test_u, test_v, tmp_target = test_u.to(device), test_v.to(device), tmp_target.to(device)
             val_output = model.forward(test_u, test_v)
+
+            #puts the range of the value between 0-4 ranking
             val_output = torch.clamp(val_output, min=0, max=4)
             tmp_pred.append(list(val_output.data.cpu().numpy()))
             target.append(list(tmp_target.data.cpu().numpy()))
     tmp_pred = np.array(sum(tmp_pred, []))
     target = np.array(sum(target, []))
+
+    #checking regression performance
     expected_rmse = sqrt(mean_squared_error(tmp_pred, target))
     mae = mean_absolute_error(tmp_pred, target)
     return expected_rmse, mae
@@ -325,6 +329,7 @@ def load(path):
     for node in G:
         for nbr in G[node]:
             if G[node][nbr]['type'] == 'u2u':
+                print("nbr: ", nbr)
                 social_adj_lists[node].add(nbr)
             if G[node][nbr]['type'] == 'u2b':
                 r = G[node][nbr]['rating'] - 1

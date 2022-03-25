@@ -237,7 +237,7 @@ class YelpParser():
             with open(file, 'r', encoding='utf-8') as reviews:
                 counter = 0
                 for line in tqdm(reviews):
-                    if counter_2 != 10000:
+                    if counter_2 != 1000:
                         data = json.loads(line)
 
                         tempReviewID = self.convertLettersToNumbers(data["review_id"])
@@ -324,7 +324,7 @@ class YelpParser():
                     data = json.loads(line)
 
                     if int(data["review_count"]) > 5 and data["is_open"] != 0 and data["categories"] is not None:
-                        if counter != 10000:
+                        if counter != 5000:
                             tempBusinessID = self.convertLettersToNumbers(data["business_id"])
 
                             tempCategories = data["categories"].split(",")
@@ -418,7 +418,7 @@ class YelpParser():
                 for line in tqdm(f):
                     data = json.loads(line)
                     if int(data["review_count"]) > 10 and len(data["name"]) > 1:
-                        if counter != 10000:
+                        if counter != 5000:
 
                             tempUserID = self.convertLettersToNumbers(data["user_id"])
 
@@ -471,7 +471,7 @@ class YelpParser():
                 if len(existing_friends) > 4:
                     self.user_friends_dict[key] = existing_friends
                 else:
-                    print("to be deleted: ", key)
+                    # print("to be deleted: ", key)
                     usersToBeDeleted.append(key)
 
             for key in tqdm(self.user_friends_dict.copy()):
