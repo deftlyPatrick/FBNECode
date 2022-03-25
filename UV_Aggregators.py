@@ -6,7 +6,6 @@ import numpy as np
 import random
 from Attention import Attention
 
-#2.4 graphrec research paper
 
 class UV_Aggregator(nn.Module):
     """
@@ -44,18 +43,13 @@ class UV_Aggregator(nn.Module):
 
             e_r = self.r2e.weight[tmp_label]
 
-            #concatenates the given sequence of seq tensors in the given dimension.
             x = torch.cat((e_uv, e_r), 1)
-
-
             x = F.relu(self.w_r1(x))
             o_history = F.relu(self.w_r2(x))
 
             att_w = self.att(o_history, uv_rep, num_histroy_item)
             att_history = torch.mm(o_history.t(), att_w)
             att_history = att_history.t()
-
-
 
             embed_matrix[i] = att_history
 
