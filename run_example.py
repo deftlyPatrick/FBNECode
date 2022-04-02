@@ -113,7 +113,7 @@ def test(model, device, test_loader):
         for test_u, test_v, tmp_target in test_loader:
             test_u, test_v, tmp_target = test_u.to(device), test_v.to(device), tmp_target.to(device)
             val_output = model.forward(test_u, test_v)
-            val_output = torch.clamp(val_output, min=0, max=4)
+            val_output = torch.clamp(val_output, min=0, max=1)
             tmp_pred.append(list(val_output.data.cpu().numpy()))
             target.append(list(tmp_target.data.cpu().numpy()))
     tmp_pred = np.array(sum(tmp_pred, []))
@@ -189,8 +189,8 @@ def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge
     BiG = nx.Graph()
     node_u = history_u_lists.keys()
     node_v = history_v_lists.keys()
-    node_u.sort()
-    node_v.sort()
+    node_u = sorted(node_u)
+    node_v = sorted(node_v)
 
     BiG.add_nodes_from(node_u, bipartite = 0)
     BiG.add_nodes_from(node_v, bipartite = 1)
@@ -211,8 +211,8 @@ def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge
 
     authority_u, authority_v = calculate_centrality(BiG, node_u, node_v) # todo task
 
-    G_u, walks_u = get_random_walks_restart(fw_u, authority_u, percentage = 0.15, maxT = 32, minT=1)
-    G_v, walks_v = get_random_walks_restart(fw_v, authority_v, percentage = 0.15, maxT = 32, minT=1)
+    G_u, walks_u = get_random_walks_restart(fw_u, authority_u, percentage=0.15, maxT=32, minT=1)
+    G_v, walks_v = get_random_walks_restart(fw_v, authority_v, percentage=0.15, maxT=32, minT=1)
 
     return G_u, walks_u, G_v, walks_v
 
@@ -241,19 +241,26 @@ def load(path):
     G = nx.Graph()
     G.name = path
 
-    for net_type in ['u2u_new','u2b']:
+    for net_type in ['yelp_small_data_u2u','yelp_small_data_u2b']:
         with open(path+net_type+".net") as fp:
             for line in fp:
-                info = line.strip().split("\t")
-                node1 = info[0]
-                node2 = info[1]
-                rating = int(float(info[2]))
-                if net_type == 'u2u_new':
-                    G.add_edge(node1, node2, type = 'u2u')
-                    uSet_u2u.add(node1)
-                    uSet_u2u.add(node2)
+                info = line.strip().split("`t")
+                if net_type == 'yelp_small_data_u2u':
+                    node1 = info[1]
+                    node2 = info[2]
+                    node2 = node2.replace("[", "")
+                    node2 = node2.replace("]", "")
+                    friend_list = node2.split(",")
+                    for friend in friend_list:
+                        node2 = int(friend)
+                        G.add_edge(node1, node2, type='u2u')
+                        uSet_u2u.add(node1)
+                        uSet_u2u.add(node2)
                 else:
-                    G.add_edge(node1, node2, type = 'u2b', rating = rating)
+                    node1 = info[1]
+                    node2 = info[2]
+                    rating = int(float(info[3]))
+                    G.add_edge(node1, node2, type='u2b', rating=rating)
                     uSet_u2b.add(node1)
                     bSet_u2b.add(node2)
 
@@ -266,7 +273,7 @@ def load(path):
 
 
     node_names = nx.get_node_attributes(G,'name') #key-value dict {'id':'name'}
-    inv_map = {v: k for k, v in node_names.iteritems()}
+    inv_map = {v: k for k, v in node_names.items()}
 
     uSet_u2u = set([inv_map.get(name) for name in uSet_u2u])
     uSet_u2b = set([inv_map.get(name) for name in uSet_u2b])
@@ -342,8 +349,8 @@ def load(path):
     _history_vr_lists = defaultdict(list)
     _train_u, _train_v, _train_r, _test_u, _test_v, _test_r = [],[],[],[],[],[]
 
-    user_id_dic = {v: k for k,v in dict(enumerate(history_u_lists.keys())).iteritems()}
-    item_id_dic = {v: k for k,v in dict(enumerate(history_v_lists.keys())).iteritems()}
+    user_id_dic = {v: k for k,v in dict(enumerate(history_u_lists.keys())).items()}
+    item_id_dic = {v: k for k,v in dict(enumerate(history_v_lists.keys())).items()}
 
 
     for u in history_u_lists:
@@ -358,8 +365,16 @@ def load(path):
     for v in history_vr_lists:
         _history_vr_lists[item_id_dic[v]] = history_vr_lists[v]
 
+    tempList = []
+
     for u in social_adj_lists:
-        _social_adj_lists[user_id_dic[u]] = [user_id_dic[us] for us in social_adj_lists[u]]
+
+        for us in social_adj_lists[u]:
+            if us in user_id_dic:
+                tempList.append(user_id_dic[us])
+
+        if u in user_id_dic:
+            _social_adj_lists[user_id_dic[u]] = tempList
 
     for u,v,r in train_data:
         _train_u.append(user_id_dic[u])
@@ -401,7 +416,9 @@ def main():
 
     embed_dim = args.embed_dim
 
-    path = '../SageIndRec/data/EDH/'
+    # path = '../SageIndRec/data/EDH/'
+    path = os.getcwd() + "\\"
+
     history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = load(path)
 
 
@@ -414,7 +431,7 @@ def main():
     num_users = history_u_lists.__len__()
     num_items = history_v_lists.__len__()
     num_ratings = ratings_list.__len__()
-    print "number of users, items, ratings: ", (num_users, num_items, num_ratings)
+    print("number of users, items, ratings: ", (num_users, num_items, num_ratings))
     u2e = nn.Embedding(num_users, embed_dim).to(device)
     v2e = nn.Embedding(num_items, embed_dim).to(device)
     r2e = nn.Embedding(num_ratings, embed_dim).to(device)
