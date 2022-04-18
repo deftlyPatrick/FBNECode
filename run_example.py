@@ -21,6 +21,8 @@ from math import sqrt
 import datetime
 import argparse
 
+import matplotlib.pyplot as plt
+
 import os
 import networkx as nx
 from networkx.algorithms import bipartite as bi
@@ -148,7 +150,8 @@ def calculate_centrality(G, uSet, bSet, mode='hits'):
     if mode == 'degree_centrality':
         a = nx.degree_centrality(G)
     else:
-        h, a = nx.hits(G)
+        # h, a = nx.hits(G)
+        a = nx.pagerank(G)
 
     max_a_u, min_a_u, max_a_v, min_a_v = 0, 100000, 0, 100000
 
@@ -273,7 +276,10 @@ def load(path):
             for line in fp:
                 info = line.strip().split("`t")
                 if net_type == 'linkedin_data_u2s':
+                    #id
                     node1 = info[0]
+
+                    #user_id
                     node2 = info[1]
                     node2 = node2.replace("[", "")
                     node2 = node2.replace("]", "")
@@ -284,9 +290,14 @@ def load(path):
                         uSet_u2u.add(node1)
                         uSet_u2u.add(node2)
                 else:
+                    #id
                     node1 = info[0]
+
+                    #user_id
                     node2 = info[1]
-                    rating = int(float(info[2]))
+
+                    #user_current_job
+                    rating = int(info[2])
                     G.add_edge(node1, node2, type='u2b', rating=rating)
                     uSet_u2b.add(node1)
                     bSet_u2b.add(node2)
@@ -332,7 +343,7 @@ def load(path):
     edge_list_vu = []
 
     for node in G:
-        print(node)
+        # print(node)
         for nbr in G[node]:
             if G[node][nbr]['type'] == 'u2u':
                 social_adj_lists[node].add(nbr)
@@ -386,7 +397,7 @@ def load(path):
         test_v.append(v)
         test_r.append(r)
 
-    ratings_list = range(0, 50)
+    ratings_list = range(0, 25000)
     # return history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list
 
     # ------------------------------reindexed users and items respectively------------------------
@@ -428,7 +439,7 @@ def load(path):
     for u, v, r in train_data:
         _train_u.append(user_id_dic[u])
         _train_v.append(item_id_dic[v])
-        print(_train_v)
+        # print(_train_v)
         _train_r.append(r)
 
     for u, v, r in test_data:
@@ -444,6 +455,10 @@ def load(path):
     for v in walks_v:
         _walks_v[item_id_dic[v]] = [item_id_dic[vs] for vs in walks_v[v]]
 
+    nx.draw(G, with_labels=True)
+    plt.savefig("graph.png", dpi=600)
+    plt.show()
+
     return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list
 
 
@@ -454,7 +469,7 @@ def main():
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
+    parser.add_argument('--epochs', type=int, default=200, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
@@ -523,6 +538,8 @@ def main():
         else:
             endure_count += 1
         print("rmse: %.4f, mae:%.4f " % (expected_rmse, mae))
+
+
 
         if endure_count > 10:
             break
