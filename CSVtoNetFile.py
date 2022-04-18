@@ -42,6 +42,7 @@ counter = 0
 
 for k, v in final.items():
     # if counter != 1000:
+    # print(k)
     user_id = str(v["id"])
     user_current_job = str(v["current_job_id"])
     user_current_company = str(v["current_company_id"])
@@ -55,33 +56,11 @@ for k, v in final.items():
     # print(user_current_job)
     # print(user_jobs)
     # print(user_skills)
-    u2exp.write(user_id + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
-    u2s.write(user_id + "`t" + user_skills + "`t" + "\n")
-    u2edu.write(user_id + "`t" + user_education + "`t" + "\n")
+    u2exp.write(str(k) + "`t" + user_id + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
+    u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
+    u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
         # counter += 1
 
 u2exp.close()
 u2s.close()
 u2edu.close()
-#
-#     #Read CSV
-#     counter = 0
-#     readCsv = csv.reader(csvFile)
-#     for row in readCsv:
-#         print(row)
-#         #Get Values and manupilate in the file.write
-#         if counter != 0:
-#             id = row[0]
-#             user_id = row[2]
-#             business_id = row[3]
-#             rating = row[5]
-#             friends = row[7]
-#
-#             #Write CSV you need format it to string if the value is an int
-#             u2b.write(id + "`t" + user_id + "`t" + business_id + "`t" + rating + "\n")
-#             u2u.write(id + "`t" + user_id + "`t" + friends + "\n")
-#         else:
-#             counter += 1
-#
-# u2b.close()
-# u2u.close()
