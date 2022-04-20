@@ -56,7 +56,7 @@ for k, v in final.items():
     # print(user_current_job)
     # print(user_jobs)
     # print(user_skills)
-    u2exp.write(str(k) + "`t" + user_id + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
+    u2exp.write(str(k) + "`t" + user_id + "`t" + user_skills + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
     u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
     u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
         # counter += 1

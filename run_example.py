@@ -248,39 +248,16 @@ def load(path):
     G = nx.Graph()
     G.name = path
 
-    # for net_type in ['yelp_small_data_u2u','yelp_small_data_u2b']:
-    #     with open(path+net_type+".net") as fp:
-    #         for line in fp:
-    #             info = line.strip().split("`t")
-    #             if net_type == 'yelp_small_data_u2u':
-    #                 node1 = info[1]
-    #                 node2 = info[2]
-    #                 node2 = node2.replace("[", "")
-    #                 node2 = node2.replace("]", "")
-    #                 friend_list = node2.split(",")
-    #                 for friend in friend_list:
-    #                     node2 = int(friend)
-    #                     G.add_edge(node1, node2, type='u2u')
-    #                     uSet_u2u.add(node1)
-    #                     uSet_u2u.add(node2)
-    #             else:
-    #                 node1 = info[1]
-    #                 node2 = info[2]
-    #                 rating = int(float(info[3]))
-    #                 G.add_edge(node1, node2, type='u2b', rating=rating)
-    #                 uSet_u2b.add(node1)
-    #                 bSet_u2b.add(node2)
-
     for net_type in ['linkedin_data_u2s', 'linkedin_data_u2exp']:
         with open(path + net_type + ".net") as fp:
             for line in fp:
                 info = line.strip().split("`t")
                 if net_type == 'linkedin_data_u2s':
                     #id
-                    node1 = info[0]
+                    node1 = info[1]
 
                     #user_id
-                    node2 = info[1]
+                    node2 = info[2]
                     node2 = node2.replace("[", "")
                     node2 = node2.replace("]", "")
                     skills_list = node2.split(",")
@@ -291,16 +268,16 @@ def load(path):
                         uSet_u2u.add(node2)
                 else:
                     #id
-                    node1 = info[0]
+                    node1 = info[1]
 
                     #user_id
-                    node2 = info[1]
-
-                    #user_current_job
-                    rating = int(info[2])
-                    G.add_edge(node1, node2, type='u2b', rating=rating)
-                    uSet_u2b.add(node1)
-                    bSet_u2b.add(node2)
+                    for skill in skills_list:
+                        #user_current_job
+                        node2 = skill
+                        rating = int(info[3])
+                        G.add_edge(node1, node2, type='u2b', rating=rating)
+                        uSet_u2b.add(node1)
+                        bSet_u2b.add(node2)
 
     # for net_type in ['yelp_academic_dataset_business_total_dataset_small_u2b','yelp_academic_dataset_business_total_dataset_small_u2u']:
     #     with open(path+net_type+".net") as fp:
@@ -455,9 +432,9 @@ def load(path):
     for v in walks_v:
         _walks_v[item_id_dic[v]] = [item_id_dic[vs] for vs in walks_v[v]]
 
-    nx.draw(G, with_labels=True)
-    plt.savefig("graph.png", dpi=600)
-    plt.show()
+    # nx.draw(G, with_labels=True)
+    # plt.savefig("graph.png", dpi=600)
+    # plt.show()
 
     return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list
 
