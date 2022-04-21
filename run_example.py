@@ -92,7 +92,6 @@ class GraphRec(nn.Module):
         scores = self.forward(nodes_u, nodes_v)
         return self.criterion(scores, labels_list)
 
-
 def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
     model.train()
     running_loss = 0.0
@@ -104,7 +103,7 @@ def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
         optimizer.step()
         running_loss += loss.item()
         if i % 100 == 0:
-            print('[%d, %5d] loss: %.3f, The best rmse/mae: %.6f / %.6f' % (
+            print('Training: [%d, %5d] loss: %.3f, The best rmse/mae: %.6f / %.6f' % (
                 epoch, i, running_loss / 100, best_rmse, best_mae))
             running_loss = 0.0
     return 0
@@ -115,12 +114,21 @@ def test(model, device, test_loader):
     tmp_pred = []
     target = []
     with torch.no_grad():
+        counter = 0
         for test_u, test_v, tmp_target in test_loader:
             test_u, test_v, tmp_target = test_u.to(device), test_v.to(device), tmp_target.to(device)
             val_output = model.forward(test_u, test_v)
             val_output = torch.clamp(val_output, min=0, max=1)
+
             tmp_pred.append(list(val_output.data.cpu().numpy()))
+            tmp_pred[counter].sort(reverse=True)
+            print("\npred: ", tmp_pred[counter][0:5])
+
             target.append(list(tmp_target.data.cpu().numpy()))
+            target[counter].sort(reverse=True)
+            print("target: ", target[counter][0:5], "\n")
+            counter += 1
+
     tmp_pred = np.array(sum(tmp_pred, []))
     target = np.array(sum(target, []))
     expected_rmse = sqrt(mean_squared_error(tmp_pred, target))
@@ -253,10 +261,10 @@ def load(path):
             for line in fp:
                 info = line.strip().split("`t")
                 if net_type == 'linkedin_data_u2s':
-                    #id
-                    node1 = info[1]
+                    # user_id
+                    node1 = int(info[1])
 
-                    #user_id
+                    # skills
                     node2 = info[2]
                     node2 = node2.replace("[", "")
                     node2 = node2.replace("]", "")
@@ -267,40 +275,35 @@ def load(path):
                         uSet_u2u.add(node1)
                         uSet_u2u.add(node2)
                 else:
-                    #id
-                    node1 = info[1]
+                    # user_id
+                    node1 = int(info[1])
 
-                    #user_id
-                    for skill in skills_list:
-                        #user_current_job
-                        node2 = skill
-                        rating = int(info[3])
-                        G.add_edge(node1, node2, type='u2b', rating=rating)
-                        uSet_u2b.add(node1)
-                        bSet_u2b.add(node2)
+                    #user_current_job
+                    node2 = info[3]
 
-    # for net_type in ['yelp_academic_dataset_business_total_dataset_small_u2b','yelp_academic_dataset_business_total_dataset_small_u2u']:
-    #     with open(path+net_type+".net") as fp:
-    #         for line in fp:
-    #             info = line.strip().split("`t")
-    #             if net_type == 'yelp_academic_dataset_business_total_dataset_small_u2u':
-    #                 node1 = info[1]
-    #                 node2 = info[2]
-    #                 node2 = node2.replace("[", "")
-    #                 node2 = node2.replace("]", "")
-    #                 friend_list = node2.split(",")
-    #                 for friend in friend_list:
-    #                     node2 = int(friend)
-    #                     G.add_edge(node1, node2, type='u2u')
-    #                     uSet_u2u.add(node1)
-    #                     uSet_u2u.add(node2)
-    #             else:
-    #                 node1 = info[1]
-    #                 node2 = info[2]
-    #                 rating = int(float(info[3]))
-    #                 G.add_edge(node1, node2, type='u2b', rating=rating)
-    #                 uSet_u2b.add(node1)
-    #                 bSet_u2b.add(node2)
+                    #user_current_company
+                    rating = int(info[5])
+                    G.add_edge(node1, node2, type='u2b', rating=rating)
+                    uSet_u2b.add(node1)
+                    bSet_u2b.add(node2)
+
+                    # node2 = info[2]
+                    # node2 = node2.replace("[", "")
+                    # node2 = node2.replace("]", "")
+                    # skills_list = node2.split(",")
+                    #
+                    # # skills to company
+                    # for skill in skills_list:
+                    #     # user_current_job
+                    #     node2 = skill
+                    #     #company
+                    #     rating = int(info[5])
+                    #     # print(rating)
+                    #     G.add_edge(node1, node2, type='u2b', rating=rating)
+                    #     uSet_u2b.add(node1)
+                    #     bSet_u2b.add(node2)
+
+                        # print(node2)
 
     print(nx.info(G))
     print("uSet of u2u, size: " + str(len(uSet_u2u)))
@@ -327,6 +330,7 @@ def load(path):
             if G[node][nbr]['type'] == 'u2b':
                 r = G[node][nbr]['rating']
                 if node in uSet_u2b and nbr in bSet_u2b:
+                    # print("node inner: ", node, "nbr: ", nbr)
                     history_u_lists[node].append(nbr)
                     history_v_lists[nbr].append(node)
                     history_ur_lists[node].append(r)
@@ -334,6 +338,7 @@ def load(path):
                     edge_list_uv.append((node, nbr, r))
                     edge_list_vu.append((nbr, node, r))
                 if nbr in uSet_u2b and node in bSet_u2b:
+                    # print("node outer: ", node, "nbr: ", nbr)
                     history_u_lists[nbr].append(node)
                     history_v_lists[node].append(nbr)
                     history_ur_lists[nbr].append(r)
@@ -354,10 +359,12 @@ def load(path):
     for (u, v) in G.edges():
         # print(u, v)
         if G[u][v]['type'] == 'u2b':
-            r = G[u][v]['rating']
+            r = G[u][v]['rating'] - 1
             if u in uSet_u2b:
+                # print("u inner: ", u, v, r)
                 data.append((u, v, r))
             else:
+                # print("u outer: ", u, v, r)
                 data.append((v, u, r))
     size = len(data)
     train_data = data[:int(0.8 * size)]  # 35704
@@ -374,7 +381,7 @@ def load(path):
         test_v.append(v)
         test_r.append(r)
 
-    ratings_list = range(0, 25000)
+    ratings_list = range(0, 12403)
     # return history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list
 
     # ------------------------------reindexed users and items respectively------------------------
@@ -416,7 +423,6 @@ def load(path):
     for u, v, r in train_data:
         _train_u.append(user_id_dic[u])
         _train_v.append(item_id_dic[v])
-        # print(_train_v)
         _train_r.append(r)
 
     for u, v, r in test_data:
@@ -445,8 +451,8 @@ def main():
     parser.add_argument('--batch_size', type=int, default=128, metavar='N', help='input batch size for training')
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
-    parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N', help='number of epochs to train')
+    parser.add_argument('--test_batch_size', type=int, default=32, metavar='N', help='input batch size for testing')
+    parser.add_argument('--epochs', type=int, default=10, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
@@ -515,8 +521,6 @@ def main():
         else:
             endure_count += 1
         print("rmse: %.4f, mae:%.4f " % (expected_rmse, mae))
-
-
 
         if endure_count > 10:
             break
