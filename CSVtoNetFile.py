@@ -50,15 +50,17 @@ for k, v in final.items():
     user_skills = str(v["skills_ids"])
     user_years_of_experience = str(v["years of experience"])
     user_education = str(v["education_ids"])
-    total_jobs_history = str(v["total_jobs_history"])
+    total_jobs_history = str(list(v["total_jobs_history"]))
 
+    print("\n", total_jobs_history)
+    print("len total_job_history: ", len(list(v["total_jobs_history"])))
     # print("\n\n")
     # print(user_id)
     # print(user_current_job)
     # print(user_jobs)
     # print(user_skills)
-    u2exp.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
-    u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
+    u2exp.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "`t" + total_jobs_history + "\n")
+    u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + total_jobs_history + "\n")
     u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
     counter += 1
 
