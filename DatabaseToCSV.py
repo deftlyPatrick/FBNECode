@@ -17,8 +17,6 @@ connection = mysql.connector.connect(host='10.33.113.250',
                                      )
 cursor = None
 
-
-
 if connection.is_connected:
     db_Info = connection.get_server_info()
     print("Connected to MySQL Server version ", db_Info)
@@ -27,78 +25,86 @@ if connection.is_connected:
     record = cursor.fetchone()
     print("You're connected to database: ", record)
 
-#0 - id
-#1 - user_url
-#2 - name
-#3 - location
-#4 - header
+# 0 - id
+# 1 - user_url
+# 2 - name
+# 3 - location
+# 4 - header
 employee_query = "SELECT * FROM employees;"
 
-#0 - emp_id
-#1 - edu_id
-#2 - start_date
-#3 - end_date
-#4 - GPA
-#5 - activities
-#6 - description
+# 0 - emp_id
+# 1 - edu_id
+# 2 - start_date
+# 3 - end_date
+# 4 - GPA
+# 5 - activities
+# 6 - description
 employee_education_query = "SELECT * FROM employee_education"
 
-#0 - emp_id
-#1 - exp_id
-#2 - start_date
-#3 - end_date
-#4 - location
-#5 - description
-#6 - employment_type
+# 0 - emp_id
+# 1 - exp_id
+# 2 - start_date
+# 3 - end_date
+# 4 - location
+# 5 - description
+# 6 - employment_type
 employee_experience_query = "SELECT * FROM employee_experience"
 
-#0 - emp_id
-#1 - skill_id
+# 0 - emp_id
+# 1 - skill_id
 employee_skill_query = "SELECT * FROM employee_skill"
 
-#0 - id
-#1 - position
-#2 - company_name
-experiences_query = "SELECT * FROM experiences"
+# 0 - id
+# 1 - position
+# 2 - company_name
+experiences_query = "SELECT * FROM experiences ORDER BY id"
 
-#0 - id
-#1 - skill
-#2 - category
+# 0 - id
+# 1 - skill
+# 2 - category
 skills_query = "SELECT * FROM skills"
 
-#0 - id
-#1 - institution
-#2 - degree
-#3 - degree_type
+# 0 - id
+# 1 - institution
+# 2 - degree
+# 3 - degree_type
 educations_query = "SELECT * FROM educations"
 
-#employee_query
+# employee_query
 cursor.execute(employee_query)
 employee_query_records = cursor.fetchall()
 
-#employee_education_query
+# employee_education_query
 cursor.execute(employee_education_query)
 employee_education_records = cursor.fetchall()
 
-#employee_skill_query
+# employee_skill_query
 cursor.execute(employee_skill_query)
 employee_skill_records = cursor.fetchall()
 
-#employee_experience_query
+# employee_experience_query
 cursor.execute(employee_experience_query)
 employee_experience_records = cursor.fetchall()
 
-#experiences_query
+# experiences_query
 cursor.execute(experiences_query)
 experiences_records = cursor.fetchall()
 
-#skills_query
+# skills_query
 cursor.execute(skills_query)
 skills_records = cursor.fetchall()
 
-#educations_query
+# educations_query
 cursor.execute(educations_query)
 educations_records = cursor.fetchall()
+
+total_experiences_record = {}
+
+for row in experiences_records:
+    total_experiences_record[row[0]] = [row[1], row[2]]
+
+output_to_CSV(data=total_experiences_record, name="linkedin_total_experience", specialColumns=True,
+              labels=["id", "position", "company"])
 
 # id - name - current job - education - skills
 
@@ -172,7 +178,6 @@ for row in experiences_records:
 output_to_CSV(data=overall_company_id, name="linkedin_company_id", labels=["id", "company"])
 output_to_CSV(data=overall_job_id, name="linkedin_job_id", labels=["id", "position"])
 
-
 company_list_keys = list(overall_company_id.keys())
 company_list_values = list(overall_company_id.values())
 
@@ -204,7 +209,7 @@ for row in employee_experience_records:
                     employees[row[0]]["current_company_id"] = company_list_keys[company_idx]
                     employees[row[0]]["total_companies_history"].add(company_list_keys[company_idx])
 
-                    employees[row[0]]["years of experience"] += (current_date - row[2]).days//365
+                    employees[row[0]]["years of experience"] += (current_date - row[2]).days // 365
 
                     total_jobs += 1
                 else:
@@ -217,9 +222,9 @@ for row in employee_experience_records:
                     employees[row[0]]["total_companies_history"].add(company_list_keys[company_idx])
 
                     if row[3] == None:
-                        employees[row[0]]["years of experience"] += (current_date - row[2]).days//365
+                        employees[row[0]]["years of experience"] += (current_date - row[2]).days // 365
                     else:
-                        employees[row[0]]["years of experience"] += (row[3] - row[2]).days//365
+                        employees[row[0]]["years of experience"] += (row[3] - row[2]).days // 365
 
                     total_jobs += 1
 
@@ -248,18 +253,29 @@ for row in employee_skill_records:
         for subrow in skills_records:
             if row[1] == subrow[0]:
                 employees[row[0]]["skills"].append(subrow[1])
-                employees[row[0]]["skills_ids"].append(subrow[0])
+                employees[row[0]]["skills_ids"].append(int(subrow[0]))
                 if subrow[2] not in employees[row[0]]["industries"]:
                     employees[row[0]]["industries"].add(subrow[2])
 
+final_employees = {}
+
+counter = 0
+for k, v in employees.items():
+    v['id'] = counter
+    final_employees[counter] = v
+    counter += 1
+
 
 pp = pprint.PrettyPrinter(depth=4)
-pp.pprint(employees)
+pp.pprint(final_employees)
+# pp.pprint(employees)
+
 # print(json.dumps(employees, indent=4))
 # print(employees)
 
-df = pd.DataFrame(employees.items())
-df.to_csv('linkedin_data.csv',index=False)
+df = pd.DataFrame(final_employees.items())
+# df = pd.DataFrame(employees.items())
+df.to_csv('linkedin_data.csv', index=False)
 
 end = time.time()
 print("Time Elapsed: ", (end - start) / 60)

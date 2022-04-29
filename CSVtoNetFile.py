@@ -2,7 +2,8 @@ import csv
 import pandas as pd
 import json
 import ast
-#Open CSV file to read CSV, note: reading and write file should be under "with"
+
+# Open CSV file to read CSV, note: reading and write file should be under "with"
 
 # file = "yelp_academic_dataset_business_total_dataset_small"
 file = "linkedin_data"
@@ -27,11 +28,11 @@ for k, v in tempDict.items():
 #     print(v)
 
 
-#user-skills - u2s
-#user-experience - u2exp
-#user-education - u2edu
+# user-skills - u2s
+# user-experience - u2exp
+# user-education - u2edu
 
-#0 = id
+# 0 = id
 
 
 u2s = open(file + "_u2s.net", "w", encoding="utf-8")
@@ -41,26 +42,29 @@ u2edu = open(file + "_u2edu.net", "w", encoding="utf-8")
 counter = 0
 
 for k, v in final.items():
-    # if counter != 500:
-    # print(k)
-    user_id = str(v["id"])
-    user_current_job = str(v["current_job_id"])
-    user_current_company = str(v["current_company_id"])
-    user_jobs = str(v["total_jobs_history"])
-    user_skills = str(v["skills_ids"])
-    user_years_of_experience = str(v["years of experience"])
-    user_education = str(v["education_ids"])
-    total_jobs_history = str(v["total_jobs_history"])
+    if counter != 500:
 
-    # print("\n\n")
-    # print(user_id)
-    # print(user_current_job)
-    # print(user_jobs)
-    # print(user_skills)
-    u2exp.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + user_current_job + "`t" + user_years_of_experience + "`t" + user_current_company + "\n")
-    u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
-    u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
-    counter += 1
+        user_id = str(v["id"])
+        username = str(v["name"])
+        user_position_id = str(v["current_job_id"])
+        user_current_company = str(v["current_company_id"])
+        user_current_job_id = str(v["current_job_company_id"])
+        user_jobs = str(v["total_jobs_history"])
+        user_skills = str(list(v["skills_ids"]))
+        user_years_of_experience = str(v["years of experience"])
+        user_education = str(v["education_ids"])
+        total_jobs_history = str(list(v["total_jobs_history"]))
+
+        if len(total_jobs_history) > 1:
+            u2exp.write(str(k) + "`t" + user_id + "`t" + user_position_id + "`t" + total_jobs_history + "`t" + str(1) + "\n")
+            u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
+            u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
+        else:
+            print(user_id)
+            u2exp.write(str(k) + "`t" + user_id + "`t"+ user_position_id + "`t" + total_jobs_history + "`t" + str(0) + "\n")
+            u2s.write(str(k) + "`t" + user_id + "`t" + user_skills + "`t" + "\n")
+            u2edu.write(str(k) + "`t" + user_id + "`t" + user_education + "`t" + "\n")
+        counter += 1
 
 u2exp.close()
 u2s.close()
