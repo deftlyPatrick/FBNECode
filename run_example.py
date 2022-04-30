@@ -368,6 +368,14 @@ def model_prediction(model, users=5, total_users=None, data=None, user=None):
         #
         # linkedin_reindex_job_exp.close()
 
+        linkedin_reindex_job_exp = open("linkedin_reindex_company_id.csv", "w", encoding="utf-8")
+        for k, v in job_output.items():
+            id = str(k)
+            job_exp = str(v)
+            linkedin_reindex_job_exp.write(id + "," + job_exp + "\n")
+
+        linkedin_reindex_job_exp.close()
+
         total_positions = torch.tensor(list(job_output.keys()))
 
         to_predict = torch.ones(len(total_positions), dtype=torch.int64) * to_predict
@@ -421,7 +429,7 @@ def load(path):
     G = nx.Graph()
     G.name = path
 
-    for net_type in ['linkedin_data_u2s', 'linkedin_data_u2exp']:
+    for net_type in ['linkedin_data_u2s', 'linkedin_data_u2company']:
         with open(path + net_type + ".net") as fp:
             for line in fp:
                 info = line.strip().split("`t")
@@ -463,6 +471,22 @@ def load(path):
 
                     total_users.add(int(node1))
 
+                    node2 = info[2]
+                    node2 = node2.replace("[", "")
+                    node2 = node2.replace("]", "")
+                    company_history = node2.split(",")
+                    if len(company_history) > 1:
+                        for company in company_history:
+                            node2 = int(company)
+                            rating = int(info[3])
+                            total_positions.add(int(node2))
+                            G.add_edge(node1, node2, type='u2b', rating=rating)
+                            uSet_u2b.add(node1)
+                            bSet_u2b.add(node2)
+                    else:
+                        break
+
+
                     # # position_id
                     # node2 = int(info[2])
 
@@ -473,20 +497,21 @@ def load(path):
                     # uSet_u2b.add(node1)
                     # bSet_u2b.add(node2)
 
-                    node2 = info[2]
-                    node2 = node2.replace("[", "")
-                    node2 = node2.replace("]", "")
-                    position_history = node2.split(",")
-                    if len(position_history) > 1:
-                        for position in position_history:
-                            node2 = int(position)
-                            rating = int(info[3])
-                            total_positions.add(int(node2))
-                            G.add_edge(node1, node2, type='u2b', rating=rating)
-                            uSet_u2b.add(node1)
-                            bSet_u2b.add(node2)
-                    else:
-                        break
+                    # #all exp_ids total
+                    # node2 = info[2]
+                    # node2 = node2.replace("[", "")
+                    # node2 = node2.replace("]", "")
+                    # position_history = node2.split(",")
+                    # if len(position_history) > 1:
+                    #     for position in position_history:
+                    #         node2 = int(position)
+                    #         rating = int(info[3])
+                    #         total_positions.add(int(node2))
+                    #         G.add_edge(node1, node2, type='u2b', rating=rating)
+                    #         uSet_u2b.add(node1)
+                    #         bSet_u2b.add(node2)
+                    # else:
+                    #     break
 
     print(nx.info(G))
     print("uSet of u2u, size: " + str(len(uSet_u2u)))
@@ -639,8 +664,8 @@ def main():
     parser.add_argument('--batch_size', type=int, default=128, metavar='N', help='input batch size for training')
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
-    parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N', help='number of epochs to train')
+    parser.add_argument('--test_batch_size', type=int, default=100, metavar='N', help='input batch size for testing')
+    parser.add_argument('--epochs', type=int, default=50, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
