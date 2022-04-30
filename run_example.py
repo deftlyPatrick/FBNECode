@@ -4,6 +4,10 @@ from torch.nn import init
 from torch.autograd import Variable
 import pickle
 import numpy as np
+import csv
+
+import pandas as pd
+import statistics
 import time
 import random
 import graph
@@ -117,7 +121,7 @@ def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
     return 0
 
 
-def test(model, device, test_loader, total_accuracy, total_prediction):
+def test(model, device, test_loader, total_accuracy, total_prediction, epoch):
     model.eval()
     tmp_pred = []
     target = []
@@ -157,15 +161,15 @@ def test(model, device, test_loader, total_accuracy, total_prediction):
                 predicted_values = test_v.tolist()
                 indices = indices.tolist()
 
-                total_accuracy[(temp_test_u.numpy()[i], loss.tolist())].append(val_output.tolist())
-                total_prediction[(temp_test_u.numpy()[i], loss.tolist())].append(test_v.tolist())
-                print("\nloss: ", loss.tolist())
-                print("prediction for user: ", temp_test_u.numpy()[i], " | ", tmp_pred[counter][0:10])
+                total_accuracy[(temp_test_u.numpy()[i], loss.tolist(), epoch)].append(val_output.tolist())
+                total_prediction[(temp_test_u.numpy()[i], loss.tolist(), epoch)].append(test_v.tolist())
+                # print("\nloss: ", loss.tolist())
+                print("\nprediction for user: ", temp_test_u.numpy()[i], " | ", tmp_pred[counter][0:10])
                 print("predicted jobs: ", [predicted_values[i] for i in indices][0:10])
 
                 target.append(list(tmp_target.data.cpu().numpy()))
                 target[counter].sort(reverse=True)
-                print("target: ", target[counter][0:10], "\n")
+                # print("target: ", target[counter][0:10], "\n")
                 counter += 1
             ###############################################################################################
             # temp_test_v = None
@@ -198,34 +202,34 @@ def test(model, device, test_loader, total_accuracy, total_prediction):
             #         target[counter].sort(reverse=True)
             #         print("target: ", target[counter][0:10], "\n")
             #         counter += 1
-                    # else:
-                    #     size = int(len(temp_test_v)/2)
-                    #     temp_test_v_a = temp_test_v[0:size] * previous_test_v
-                    #     temp_test_v_b = temp_test_v[size:] * test_v[j]
-                    #
-                    #     previous_test_v = test_v[j]
-                    #
-                    #     temp_test_v = temp_test_v_a.tolist() + temp_test_v_b.tolist()
-                    #
-                    #     temp_test_v = torch.tensor(temp_test_v, dtype=torch.int64)
-                    #
-                    #     val_output = model.forward(temp_test_u, temp_test_v)
-                    #     val_output = torch.clamp(val_output, min=0, max=1)
-                    #
-                    #     val_output, indices = torch.sort(val_output, descending=True)
-                    #
-                    #     tmp_pred.append(val_output.tolist())
-                    #
-                    #     predicted_values = temp_test_v.tolist()
-                    #     indices = indices.tolist()
-                    #
-                    #     print("\nprediction for user: ", temp_test_u.numpy()[i], " | ", tmp_pred[counter][0:10])
-                    #     print("predicted jobs: ", [predicted_values[i] for i in indices][0:10])
-                    #
-                    #     target.append(list(tmp_target.data.cpu().numpy()))
-                    #     target[counter].sort(reverse=True)
-                    #     print("target: ", target[counter][0:10], "\n")
-                    #     counter += 1
+            # else:
+            #     size = int(len(temp_test_v)/2)
+            #     temp_test_v_a = temp_test_v[0:size] * previous_test_v
+            #     temp_test_v_b = temp_test_v[size:] * test_v[j]
+            #
+            #     previous_test_v = test_v[j]
+            #
+            #     temp_test_v = temp_test_v_a.tolist() + temp_test_v_b.tolist()
+            #
+            #     temp_test_v = torch.tensor(temp_test_v, dtype=torch.int64)
+            #
+            #     val_output = model.forward(temp_test_u, temp_test_v)
+            #     val_output = torch.clamp(val_output, min=0, max=1)
+            #
+            #     val_output, indices = torch.sort(val_output, descending=True)
+            #
+            #     tmp_pred.append(val_output.tolist())
+            #
+            #     predicted_values = temp_test_v.tolist()
+            #     indices = indices.tolist()
+            #
+            #     print("\nprediction for user: ", temp_test_u.numpy()[i], " | ", tmp_pred[counter][0:10])
+            #     print("predicted jobs: ", [predicted_values[i] for i in indices][0:10])
+            #
+            #     target.append(list(tmp_target.data.cpu().numpy()))
+            #     target[counter].sort(reverse=True)
+            #     print("target: ", target[counter][0:10], "\n")
+            #     counter += 1
 
     tmp_pred = np.array(sum(tmp_pred, []))
     # print("\ntmp_pred: ", tmp_pred)
@@ -333,35 +337,60 @@ def generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge
 
     return G_u, walks_u, G_v, walks_v
 
-def model_prediction(model, device, to_predict=None, data=None, dataset=None):
-    for test_u, test_v, tmp_target in dataset:
-        test_u, test_v, tmp_target = test_u.to(device), test_v.to(device), tmp_target.to(device)
-        if to_predict is None:
-            test_u = random.choice(data)[0]
-        else:
-            test_u = to_predict
-        test_u = torch.ones(len(data), dtype=torch.int64) * test_u
 
+def model_prediction(model, users=5, total_users=None, data=None, user=None):
 
-        val_output = model.forward(test_u, test_v)
+    while users > 0:
+        user = random.choice(total_users)
+        to_predict = user
 
-        loss = F.mse_loss(val_output, tmp_target)
+        # total_loss = []
+        #
+        # tmp_pred = []
+        # target = []
+        #
+        # best_jobs = []
+        # jobs_pred = []
+        # counter = 0
 
+        data = sorted(data)
+        job_output = {}
+        counter = 0
+        for i in data:
+            job_output[counter] = i
+            counter += 1
+
+        # linkedin_reindex_job_exp = open("linkedin_reindex_exp_id.csv", "w", encoding="utf-8")
+        # for k, v in job_output.items():
+        #     id = str(k)
+        #     job_exp = str(v)
+        #     linkedin_reindex_job_exp.write(id + "," + job_exp + "\n")
+        #
+        # linkedin_reindex_job_exp.close()
+
+        total_positions = torch.tensor(list(job_output.keys()))
+
+        to_predict = torch.ones(len(total_positions), dtype=torch.int64) * to_predict
+
+        val_output = model.forward(to_predict, total_positions)
         val_output = torch.clamp(val_output, min=0, max=1)
+
         val_output, indices = torch.sort(val_output, descending=True)
 
-        tmp_pred.append(val_output.tolist())
+        print("\nprediction for user: ", to_predict.numpy()[0], " | ", val_output.tolist()[0:10])
 
-        predicted_values = data.tolist()
-        indices = indices.tolist()
+        predicted_jobs = [total_positions.tolist()[i] for i in indices][0:10]
 
-        print("\nloss: ", loss)
-        print("prediction for user: ", test_u.numpy()[0], " | ", tmp_pred[counter][0:10])
-        print("predicted jobs: ", [predicted_values[i] for i in indices][0:10])
+        output_jobs = []
 
-        target.append(list(tmp_target.data.cpu().numpy()))
-        target[counter].sort(reverse=True)
-        print("target: ", target[counter][0:10], "\n")
+        for i in predicted_jobs:
+            output_jobs.append(job_output[i])
+
+        print("predicted jobs: ", output_jobs)
+
+        users -= 1
+
+    # return expected_rmse, mae, total_loss, job_pred
 
 
 def load(path):
@@ -386,6 +415,9 @@ def load(path):
     neg_neighbors_u2u = defaultdict()
     neg_neighbors_u2b = defaultdict()
 
+    total_users = set()
+    total_positions = set()
+
     G = nx.Graph()
     G.name = path
 
@@ -394,46 +426,67 @@ def load(path):
             for line in fp:
                 info = line.strip().split("`t")
                 if net_type == 'linkedin_data_u2s':
-                    # user_id
-                    node1 = int(info[1])
+                    # # user_id
+                    # node1 = info[1]
+                    #
+                    # total_users.add(int(node1))
+                    #
+                    # # job_history
+                    # # node2 = info[2]
+                    # # node2 = node2.replace("[", "")
+                    # # node2 = node2.replace("]", "")
+                    # # job_history = node2.split(",")
+                    # # for job in job_history:
+                    # #     node2 = int(job)
+                    # #     G.add_edge(node1, node2, type='u2u')
+                    # #     uSet_u2u.add(node1)
+                    # #     uSet_u2u.add(node2)
+                    #
+                    # # skills
+                    # node2 = info[2]
+                    # node2 = node2.replace("[", "")
+                    # node2 = node2.replace("]", "")
+                    # skills_list = node2.split(",")
+                    # if len(skills_list) > 1:
+                    #     for skill in skills_list:
+                    #         node2 = int(skill)
+                    #         G.add_edge(node1, node2, type='u2u')
+                    #         uSet_u2u.add(node1)
+                    #         uSet_u2u.add(node2)
+                    # else:
+                    #     break
+                    pass
 
-                    # skills
+                else:
+                    # user_id
+                    node1 = info[1]
+
+                    total_users.add(int(node1))
+
+                    # # position_id
+                    # node2 = int(info[2])
+
+                    # total_positions.add(int(node2))
+                    #
+                    # rating = int(info[3])
+                    # G.add_edge(node1, node2, type='u2b', rating=rating)
+                    # uSet_u2b.add(node1)
+                    # bSet_u2b.add(node2)
+
                     node2 = info[2]
                     node2 = node2.replace("[", "")
                     node2 = node2.replace("]", "")
-                    skills_list = node2.split(",")
-                    if len(skills_list) > 1:
-                        for skill in skills_list:
-                            node2 = int(skill)
-                            G.add_edge(node1, node2, type='u2u')
-                            uSet_u2u.add(node1)
-                            uSet_u2u.add(node2)
+                    position_history = node2.split(",")
+                    if len(position_history) > 1:
+                        for position in position_history:
+                            node2 = int(position)
+                            rating = int(info[3])
+                            total_positions.add(int(node2))
+                            G.add_edge(node1, node2, type='u2b', rating=rating)
+                            uSet_u2b.add(node1)
+                            bSet_u2b.add(node2)
                     else:
                         break
-                    pass
-                else:
-                    # user_id
-                    node1 = int(info[1])
-
-                    # position_id
-                    node2 = info[2]
-
-                    rating = int(info[4])
-                    G.add_edge(node1, node2, type='u2b', rating=rating)
-                    uSet_u2b.add(node1)
-                    bSet_u2b.add(node2)
-
-                    # node2 = info[3]
-                    # node2 = node2.replace("[", "")
-                    # node2 = node2.replace("]", "")
-                    # job_history = node2.split(",")
-                    # for job in job_history:
-                    #     node2 = int(job)
-                    #     # rating
-                    #     rating = int(info[4])
-                    #     G.add_edge(node1, node2, type='u2b', rating=rating)
-                    #     uSet_u2b.add(node1)
-                    #     bSet_u2b.add(node2)
 
     print(nx.info(G))
     print("uSet of u2u, size: " + str(len(uSet_u2u)))
@@ -474,8 +527,8 @@ def load(path):
                     edge_list_vu.append((node, nbr, r))
 
     # print "Len: social_adj_lists: ", len(social_adj_lists)
-    print ("Len: history_u_lists: ", len(history_u_lists))
-    print ("Len: history_v_lists: ", len(history_v_lists))
+    print("history_u_lists: ", len(history_u_lists))
+    print("history_v_lists: ", len(history_v_lists))
 
     # create bipartite graph for random walk
     G_u, walks_u, G_v, walks_v = generate_bipartite_folded_walks(path, history_u_lists, history_v_lists, edge_list_uv,
@@ -500,12 +553,11 @@ def load(path):
     # test_data = data[int(0.8 * size):]  # 8927
 
     random.shuffle(data)
-    train_data = data[:int(0.8 * size)]  #
-    test_data = data[int(0.8 * size):]  #
+    train_data = data[:int(0.75 * size)]  #
+    test_data = data[int(0.75 * size):]  #
 
     train_data = sorted(train_data)
     test_data = sorted(test_data)
-
 
     train_u, train_v, train_r, test_u, test_v, test_r = [], [], [], [], [], []
     for u, v, r in train_data:
@@ -519,7 +571,7 @@ def load(path):
         test_r.append(r)
 
     ratings_list = [0, 1]
-    # return history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list
+    # return history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list, total_users, total_positions
 
     # ------------------------------reindexed users and items respectively------------------------
     # reindex
@@ -577,16 +629,17 @@ def load(path):
     for v in walks_v:
         _walks_v[item_id_dic[v]] = [item_id_dic[vs] for vs in walks_v[v]]
 
-    return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list, data
+    return _history_u_lists, _history_ur_lists, _history_v_lists, _history_vr_lists, _walks_u, _walks_v, _train_u, \
+           _train_v, _train_r, _test_u, _test_v, _test_r, _social_adj_lists, ratings_list, total_users, total_positions
 
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='Social Recommendation: GraphRec model')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N', help='input batch size for training')
-    parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='e 12211234mbedding size')
+    parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
-    parser.add_argument('--test_batch_size', type=int, default=100, metavar='N', help='input batch size for testing')
+    parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=10, metavar='N', help='number of epochs to train')
     args = parser.parse_args()
 
@@ -603,7 +656,7 @@ def main():
     # path = '../SageIndRec/data/EDH/'
     path = os.getcwd() + "\\"
 
-    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list, data = load(
+    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, walks_u, walks_v, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list, total_users, total_positions = load(
         path)
 
     total_u = train_u + test_u
@@ -615,12 +668,14 @@ def main():
     testset = torch.utils.data.TensorDataset(torch.LongTensor(test_u), torch.LongTensor(test_v),
                                              torch.FloatTensor(test_r))
     totalset = torch.utils.data.TensorDataset(torch.LongTensor(total_u), torch.LongTensor(total_v),
-                                             torch.FloatTensor(total_r))
+                                              torch.FloatTensor(total_r))
+
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=True)
     total_loader = torch.utils.data.DataLoader(totalset, batch_size=100, shuffle=True)
     # train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     # test_loader = torch.utils.data.DataLoader(testset, shuffle=True)
+
     num_users = history_u_lists.__len__()
     num_items = history_v_lists.__len__()
     num_ratings = ratings_list.__len__()
@@ -654,12 +709,23 @@ def main():
     total_accuracy = defaultdict(list)
     total_predictions = defaultdict(list)
 
+    total_loader = torch.utils.data.DataLoader(totalset, batch_size=100, shuffle=True)
+
     start = time.time()
+
+    epoch_rmse = defaultdict(list)
+    epoch_mae = defaultdict(list)
+
     for epoch in range(1, args.epochs + 1):
 
         train(graphrec, device, train_loader, optimizer, epoch, best_rmse, best_mae)
-        expected_rmse, mae, total_accuracy, total_predictions = test(graphrec, device, test_loader, total_accuracy, total_predictions)
+        expected_rmse, mae, total_accuracy, total_predictions = test(graphrec, device, test_loader, total_accuracy,
+                                                                     total_predictions, epoch)
         # please add the validation set to tune the hyper-parameters based on your datasets.
+
+        epoch_rmse[epoch].append(expected_rmse)
+
+        epoch_mae[epoch].append(mae)
 
         # early stopping (no validation set in toy dataset)
         if best_rmse > expected_rmse:
@@ -673,13 +739,58 @@ def main():
         if endure_count > 10:
             break
 
+    rmse_list = sorted(epoch_rmse.items())
+    X_rmse, y_rmse = zip(*rmse_list)
+
+    plt.title("RMSE vs Epoch")
+    plt.plot(list(map(int, X_rmse)), y_rmse, marker='o', markerfacecolor='r')
+    plt.show()
+
+    mae_list = sorted(epoch_mae.items())
+    X_mae, y_mae = zip(*mae_list)
+
+    plt.title("MAE vs Epoch")
+    plt.plot(list(map(int, X_mae)), y_mae, marker='o', markerfacecolor='r')
+    plt.show()
+
     end = time.time()
     print("Time Elapsed: ", (end - start) / 60)
 
-    print(total_predictions)
+    epoch_prediction_avg = defaultdict(list)
+    epoch_loss_avg = defaultdict(list)
 
-    model_prediction(graphrec, device=device, data=data, dataset=total_loader)
+    for key, value in total_accuracy.items():
+        epoch_prediction_avg[key[2]].append(value[0])
+        epoch_loss_avg[key[2]].append(key[1])
 
+    for k, v in epoch_prediction_avg.items():
+        epoch_prediction_avg[k] = statistics.mean(v[0])
+
+    for k, v in epoch_loss_avg.items():
+        epoch_loss_avg[k] = statistics.mean(v)
+
+    prediction_list = sorted(epoch_prediction_avg.items())
+    X_pred, y_pred = zip(*prediction_list)
+
+    plt.title("Accuracy vs Epoch")
+    plt.plot(list(map(int, X_pred)), y_pred, marker='o', markerfacecolor='r')
+    plt.show()
+
+    loss_list = sorted(epoch_loss_avg.items())
+    X_loss, y_loss = zip(*loss_list)
+
+    plt.title("Loss vs Epoch")
+    plt.plot(list(map(int, X_loss)), y_loss, marker='o', markerfacecolor='r')
+    plt.show()
+
+    total_users = list(total_users)
+    # expected_rmse, mae, total_loss, job_pred = model_prediction(graphrec, device=device, total_users=total_users, data=total_loader, user=None)
+    model_prediction(graphrec, users=5, total_users=total_users, data=total_positions, user=None)
+
+    # print(expected_rmse)
+    # print(mae)
+    # print(total_loss)
+    # print(job_pred)
 
 if __name__ == "__main__":
     main()
