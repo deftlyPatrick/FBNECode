@@ -30,7 +30,7 @@ def output_to_CSV(data, name=None, specialColumns=False, labels=None):
                 counter = 0
                 for i in range(len(values)):
                     if counter == 0:
-                        writer.writerow([value for value in values])
+                        writer.writerow([key, values[0], values[1]])
                         counter += 1
                     else:
                         continue
